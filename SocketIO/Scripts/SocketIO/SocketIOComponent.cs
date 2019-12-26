@@ -29,12 +29,11 @@
 
 //#define SOCKET_IO_DEBUG			// Uncomment this for debug
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using WebSocketSharp;
-using WebSocketSharp.Net;
 
 namespace SocketIO
 {
@@ -49,37 +48,37 @@ namespace SocketIO
 		public float pingInterval = 25f;
 		public float pingTimeout = 60f;
 
-		public WebSocket socket { get { return ws; } }
-		public string sid { get; set; }
-		public bool IsConnected { get { return connected; } }
+		public WebSocket Socket => _ws;
+		public string Sid { get; set; }
+		public bool IsConnected => _connected;
 
 		#endregion
 
 		#region Private Properties
 
-		private volatile bool connected;
-		private volatile bool thPinging;
-		private volatile bool thPong;
-		private volatile bool wsConnected;
+		private volatile bool _connected;
+		private volatile bool _thPinging;
+		private volatile bool _thPong;
+		private volatile bool _wsConnected;
 
-		private Thread socketThread;
-		private Thread pingThread;
-		private WebSocket ws;
+		private Thread _socketThread;
+		private Thread _pingThread;
+		private WebSocket _ws;
 
-		private Encoder encoder;
-		private Decoder decoder;
-		private Parser parser;
+		private Encoder _encoder;
+		private Decoder _decoder;
+		private Parser _parser;
 
-		private Dictionary<string, List<Action<SocketIOEvent>>> handlers;
-		private List<Ack> ackList;
+		private Dictionary<string, List<Action<SocketIOEvent>>> _handlers;
+		private List<Ack> _ackList;
 
-		private int packetId;
+		private int _packetId;
 
-		private object eventQueueLock;
-		private Queue<SocketIOEvent> eventQueue;
+		private object _eventQueueLock;
+		private Queue<SocketIOEvent> _eventQueue;
 
-		private object ackQueueLock;
-		private Queue<Packet> ackQueue;
+		private object _ackQueueLock;
+		private Queue<Packet> _ackQueue;
 
 		#endregion
 
@@ -91,28 +90,28 @@ namespace SocketIO
 
 		public void Awake()
 		{
-			encoder = new Encoder();
-			decoder = new Decoder();
-			parser = new Parser();
-			handlers = new Dictionary<string, List<Action<SocketIOEvent>>>();
-			ackList = new List<Ack>();
-			sid = null;
-			packetId = 0;
+			_encoder = new Encoder();
+			_decoder = new Decoder();
+			_parser = new Parser();
+			_handlers = new Dictionary<string, List<Action<SocketIOEvent>>>();
+			_ackList = new List<Ack>();
+			Sid = null;
+			_packetId = 0;
 
-			ws = new WebSocket(url);
-			ws.OnOpen += OnOpen;
-			ws.OnMessage += OnMessage;
-			ws.OnError += OnError;
-			ws.OnClose += OnClose;
-			wsConnected = false;
+			_ws = new WebSocket(url);
+			_ws.OnOpen += OnOpen;
+			_ws.OnMessage += OnMessage;
+			_ws.OnError += OnError;
+			_ws.OnClose += OnClose;
+			_wsConnected = false;
 
-			eventQueueLock = new object();
-			eventQueue = new Queue<SocketIOEvent>();
+			_eventQueueLock = new object();
+			_eventQueue = new Queue<SocketIOEvent>();
 
-			ackQueueLock = new object();
-			ackQueue = new Queue<Packet>();
+			_ackQueueLock = new object();
+			_ackQueue = new Queue<Packet>();
 
-			connected = false;
+			_connected = false;
 
 			#if SOCKET_IO_DEBUG
 			if(debugMethod == null) { debugMethod = Debug.Log; };
@@ -126,21 +125,21 @@ namespace SocketIO
 
 		public void Update()
 		{
-			lock(eventQueueLock){ 
-				while(eventQueue.Count > 0){
-					EmitEvent(eventQueue.Dequeue());
+			lock(_eventQueueLock){ 
+				while(_eventQueue.Count > 0){
+					EmitEvent(_eventQueue.Dequeue());
 				}
 			}
 
-			lock(ackQueueLock){
-				while(ackQueue.Count > 0){
-					InvokeAck(ackQueue.Dequeue());
+			lock(_ackQueueLock){
+				while(_ackQueue.Count > 0){
+					InvokeAck(_ackQueue.Dequeue());
 				}
 			}
 
-			if(wsConnected != ws.IsConnected){
-				wsConnected = ws.IsConnected;
-				if(wsConnected){
+			if(_wsConnected != _ws.IsConnected){
+				_wsConnected = _ws.IsConnected;
+				if(_wsConnected){
 					EmitEvent("connect");
 				} else {
 					EmitEvent("disconnect");
@@ -148,15 +147,15 @@ namespace SocketIO
 			}
 
 			// GC expired acks
-			if(ackList.Count == 0) { return; }
-			if(DateTime.Now.Subtract(ackList[0].time).TotalSeconds < ackExpirationTime){ return; }
-			ackList.RemoveAt(0);
+			if(_ackList.Count == 0) { return; }
+			if(DateTime.Now.Subtract(_ackList[0].time).TotalSeconds < ackExpirationTime){ return; }
+			_ackList.RemoveAt(0);
 		}
 
 		public void OnDestroy()
 		{
-			if (socketThread != null) 	{ socketThread.Abort(); }
-			if (pingThread != null) 	{ pingThread.Abort(); }
+			_socketThread?.Abort();
+			_pingThread?.Abort();
 		}
 
 		public void OnApplicationQuit()
@@ -169,44 +168,44 @@ namespace SocketIO
 		#region Public Interface
 
         public void SetHeader(string header, string value) {
-            ws.SetHeader(header, value);
+            _ws.SetHeader(header, value);
         }
 		
 		public void Connect()
 		{
-			connected = true;
+			_connected = true;
 
-			socketThread = new Thread(RunSocketThread);
-			socketThread.Start(ws);
+			_socketThread = new Thread(RunSocketThread);
+			_socketThread.Start(_ws);
 
-			pingThread = new Thread(RunPingThread);
-			pingThread.Start(ws);
+			_pingThread = new Thread(RunPingThread);
+			_pingThread.Start(_ws);
 		}
 
 		public void Close()
 		{
 			EmitClose();
-			connected = false;
+			_connected = false;
 		}
 
 		public void On(string ev, Action<SocketIOEvent> callback)
 		{
-			if (!handlers.ContainsKey(ev)) {
-				handlers[ev] = new List<Action<SocketIOEvent>>();
+			if (!_handlers.ContainsKey(ev)) {
+				_handlers[ev] = new List<Action<SocketIOEvent>>();
 			}
-			handlers[ev].Add(callback);
+			_handlers[ev].Add(callback);
 		}
 
 		public void Off(string ev, Action<SocketIOEvent> callback)
 		{
-			if (!handlers.ContainsKey(ev)) {
+			if (!_handlers.ContainsKey(ev)) {
 				#if SOCKET_IO_DEBUG
 				debugMethod.Invoke("[SocketIO] No callbacks registered for event: " + ev);
 				#endif
 				return;
 			}
 
-			List<Action<SocketIOEvent>> l = handlers [ev];
+			var l = _handlers [ev];
 			if (!l.Contains(callback)) {
 				#if SOCKET_IO_DEBUG
 				debugMethod.Invoke("[SocketIO] Couldn't remove callback action for event: " + ev);
@@ -216,35 +215,35 @@ namespace SocketIO
 
 			l.Remove(callback);
 			if (l.Count == 0) {
-				handlers.Remove(ev);
+				_handlers.Remove(ev);
 			}
 		}
 
 		public void Emit(string ev)
 		{
-			EmitMessage(-1, string.Format("[\"{0}\"]", ev));
+			EmitMessage(-1, $"[\"{ev}\"]");
 		}
 
-		public void Emit(string ev, Action<JSONObject> action)
+		public void Emit(string ev, Action<JToken> action)
 		{
-			EmitMessage(++packetId, string.Format("[\"{0}\"]", ev));
-			ackList.Add(new Ack(packetId, action));
+			EmitMessage(++_packetId, $"[\"{ev}\"]");
+			_ackList.Add(new Ack(_packetId, action));
 		}
 
 		public void Emit(string ev, string str)
 		{
-			EmitMessage(-1, string.Format("[\"{0}\",\"{1}\"]", ev, str));
+			EmitMessage(-1, $"[\"{ev}\",\"{str}\"]");
 		}
 
-		public void Emit(string ev, JSONObject data)
+		public void Emit(string ev, JToken data)
 		{
-			EmitMessage(-1, string.Format("[\"{0}\",{1}]", ev, data));
+			EmitMessage(-1, $"[\"{ev}\",{data}]");
 		}
 
-		public void Emit(string ev, JSONObject data, Action<JSONObject> action)
+		public void Emit(string ev, JToken data, Action<JToken> action)
 		{
-			EmitMessage(++packetId, string.Format("[\"{0}\",{1}]", ev, data));
-			ackList.Add(new Ack(packetId, action));
+			EmitMessage(++_packetId, $"[\"{ev}\",{data}]");
+			_ackList.Add(new Ack(_packetId, action));
 		}
 
 		#endregion
@@ -254,7 +253,7 @@ namespace SocketIO
 		private void RunSocketThread(object obj)
 		{
 			WebSocket webSocket = (WebSocket)obj;
-			while(connected){
+			while(_connected){
 				if(webSocket.IsConnected){
 					Thread.Sleep(reconnectDelay);
 				} else {
@@ -266,45 +265,43 @@ namespace SocketIO
 
 		private void RunPingThread(object obj)
 		{
-			WebSocket webSocket = (WebSocket)obj;
+			var webSocket = (WebSocket)obj;
 
-			int timeoutMilis = Mathf.FloorToInt(pingTimeout * 1000);
-			int intervalMilis = Mathf.FloorToInt(pingInterval * 1000);
+			int timeoutMills = Mathf.FloorToInt(pingTimeout * 1000);
+			int intervalMills = Mathf.FloorToInt(pingInterval * 1000);
 
-			DateTime pingStart;
-
-			while(connected)
+			while(_connected)
 			{
-				if(!wsConnected){
+				if(!_wsConnected){
 					Thread.Sleep(reconnectDelay);
 				} else {
-					thPinging = true;
-					thPong =  false;
+					_thPinging = true;
+					_thPong =  false;
 					
 					EmitPacket(new Packet(EnginePacketType.PING));
-					pingStart = DateTime.Now;
+					var pingStart = DateTime.Now;
 					
-					while(webSocket.IsConnected && thPinging && (DateTime.Now.Subtract(pingStart).TotalSeconds < timeoutMilis)){
+					while(webSocket.IsConnected && _thPinging && (DateTime.Now.Subtract(pingStart).TotalSeconds < timeoutMills)){
 						Thread.Sleep(200);
 					}
 					
-					if(!thPong){
+					if(!_thPong){
 						webSocket.Close();
 					}
 
-					Thread.Sleep(intervalMilis);
+					Thread.Sleep(intervalMills);
 				}
 			}
 		}
 
 		private void EmitMessage(int id, string raw)
 		{
-			EmitPacket(new Packet(EnginePacketType.MESSAGE, SocketPacketType.EVENT, 0, "/", id, new JSONObject(raw)));
+			EmitPacket(new Packet(EnginePacketType.MESSAGE, SocketPacketType.EVENT, 0, "/", id, JToken.Parse(raw)));
 		}
 
 		private void EmitClose()
 		{
-			EmitPacket(new Packet(EnginePacketType.MESSAGE, SocketPacketType.DISCONNECT, 0, "/", -1, new JSONObject("")));
+			EmitPacket(new Packet(EnginePacketType.MESSAGE, SocketPacketType.DISCONNECT, 0, "/", -1, JValue.CreateString("")));
 			EmitPacket(new Packet(EnginePacketType.CLOSE));
 		}
 
@@ -315,7 +312,7 @@ namespace SocketIO
 			#endif
 			
 			try {
-				ws.Send(encoder.Encode(packet));
+				_ws.Send(_encoder.Encode(packet));
 			} catch(SocketIOException ex) {
 				#if SOCKET_IO_DEBUG
 				debugMethod.Invoke(ex.ToString());
@@ -333,7 +330,7 @@ namespace SocketIO
 			#if SOCKET_IO_DEBUG
 			debugMethod.Invoke("[SocketIO] Raw message: " + e.Data);
 			#endif
-			Packet packet = decoder.Decode(e);
+			var packet = _decoder.Decode(e);
 
 			switch (packet.enginePacketType) {
 				case EnginePacketType.OPEN: 	HandleOpen(packet);		break;
@@ -341,6 +338,14 @@ namespace SocketIO
 				case EnginePacketType.PING:		HandlePing();	   		break;
 				case EnginePacketType.PONG:		HandlePong();	   		break;
 				case EnginePacketType.MESSAGE: 	HandleMessage(packet);	break;
+				case EnginePacketType.UNKNOWN:
+					break;
+				case EnginePacketType.UPGRADE:
+					break;
+				case EnginePacketType.NOOP:
+					break;
+				default:
+					throw new ArgumentOutOfRangeException();
 			}
 		}
 
@@ -349,7 +354,7 @@ namespace SocketIO
 			#if SOCKET_IO_DEBUG
 			debugMethod.Invoke("[SocketIO] Socket.IO sid: " + packet.json["sid"].str);
 			#endif
-			sid = packet.json["sid"].str;
+			Sid = packet.json["sid"].ToString();
 			EmitEvent("open");
 		}
 
@@ -360,35 +365,42 @@ namespace SocketIO
 
 		private void HandlePong()
 		{
-			thPong = true;
-			thPinging = false;
+			_thPong = true;
+			_thPinging = false;
 		}
 		
 		private void HandleMessage(Packet packet)
 		{
 			if(packet.json == null) { return; }
 
-			if(packet.socketPacketType == SocketPacketType.ACK){
-				for(int i = 0; i < ackList.Count; i++){
-					if(ackList[i].packetId != packet.id){ continue; }
-					lock(ackQueueLock){ ackQueue.Enqueue(packet); }
-					return;
-				}
+			switch (packet.socketPacketType)
+			{
+				case SocketPacketType.ACK:
+				{
+					for(int i = 0; i < _ackList.Count; i++){
+						if(_ackList[i].packetId != packet.id){ continue; }
+						lock(_ackQueueLock){ _ackQueue.Enqueue(packet); }
+						return;
+					}
 
-				#if SOCKET_IO_DEBUG
+#if SOCKET_IO_DEBUG
 				debugMethod.Invoke("[SocketIO] Ack received for invalid Action: " + packet.id);
-				#endif
-			}
+#endif
+					break;
+				}
+				case SocketPacketType.EVENT:
+				{
+					SocketIOEvent e = _parser.Parse(packet.json);
+					lock(_eventQueueLock){ _eventQueue.Enqueue(e); }
 
-			if (packet.socketPacketType == SocketPacketType.EVENT) {
-				SocketIOEvent e = parser.Parse(packet.json);
-				lock(eventQueueLock){ eventQueue.Enqueue(e); }
+					break;
+				}
 			}
 		}
 
 		private void OnError(object sender, ErrorEventArgs e)
 		{
-			EmitEvent(new SocketIOEvent("error", JSONObject.CreateStringObject(e.Message)));
+			EmitEvent(new SocketIOEvent("error", JValue.CreateString(e.Message)));
 		}
 
 		private void OnClose(object sender, CloseEventArgs e)
@@ -403,8 +415,8 @@ namespace SocketIO
 
 		private void EmitEvent(SocketIOEvent ev)
 		{
-			if (!handlers.ContainsKey(ev.name)) { return; }
-			foreach (Action<SocketIOEvent> handler in this.handlers[ev.name]) {
+			if (!_handlers.ContainsKey(ev.Name)) { return; }
+			foreach (Action<SocketIOEvent> handler in this._handlers[ev.Name]) {
 				try{
 					handler(ev);
 				} catch(Exception ex){
@@ -417,12 +429,10 @@ namespace SocketIO
 
 		private void InvokeAck(Packet packet)
 		{
-			Ack ack;
-			for(int i = 0; i < ackList.Count; i++){
-				if(ackList[i].packetId != packet.id){ continue; }
-				ack = ackList[i];
-				ackList.RemoveAt(i);
-				ack.Invoke(packet.json);
+			for(int i = 0; i < _ackList.Count; i++){
+				if(_ackList[i].packetId != packet.id){ continue; }
+				_ackList.RemoveAt(i);
+				_ackList[i].Invoke(packet.json);
 				return;
 			}
 		}

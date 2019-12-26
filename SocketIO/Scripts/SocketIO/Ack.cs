@@ -27,31 +27,31 @@
 #endregion
 
 using System;
+using Newtonsoft.Json.Linq;
 
 namespace SocketIO
 {
 	public class Ack
 	{
-		public int packetId;
+		public readonly int packetId;
 		public DateTime time;
+		private readonly Action<JToken> _action;
 
-		private System.Action<JSONObject> action;
-
-		public Ack(int packetId, System.Action<JSONObject> action)
+		public Ack(int packetId, Action<JToken> action)
 		{
 			this.packetId = packetId;
-			this.time = DateTime.Now;
-			this.action = action;
+			time = DateTime.Now;
+			_action = action;
 		}
 
-		public void Invoke(JSONObject ev)
+		public void Invoke(JToken ev)
 		{
-			action.Invoke(ev);
+			_action.Invoke(ev);
 		}
 
 		public override string ToString()
 		{
-			return string.Format("[Ack: packetId={0}, time={1}, action={2}]", packetId, time, action);
+			return $"[Ack: packetId={packetId}, time={time}, action={_action}]";
 		}
 	}
 }

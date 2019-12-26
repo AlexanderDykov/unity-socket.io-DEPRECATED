@@ -73,29 +73,29 @@ public class TestSocketIO : MonoBehaviour
 
 	public void TestOpen(SocketIOEvent e)
 	{
-		Debug.Log("[SocketIO] Open received: " + e.name + " " + e.data);
+		Debug.Log("[SocketIO] Open received: " + e.Name + " " + e.Data);
 	}
 	
 	public void TestBoop(SocketIOEvent e)
 	{
-		Debug.Log("[SocketIO] Boop received: " + e.name + " " + e.data);
+		Debug.Log("[SocketIO] Boop received: " + e.Name + " " + e.Data);
 
-		if (e.data == null) { return; }
+		if (e.Data == null) { return; }
 
 		Debug.Log(
 			"#####################################################" +
-			"THIS: " + e.data.GetField("this").str +
+			"THIS: " + e.Data["this"] +
 			"#####################################################"
 		);
 	}
 	
 	public void TestError(SocketIOEvent e)
 	{
-		Debug.Log("[SocketIO] Error received: " + e.name + " " + e.data);
+		Debug.Log("[SocketIO] Error received: " + e.Name + " " + e.Data);
 	}
 	
 	public void TestClose(SocketIOEvent e)
 	{	
-		Debug.Log("[SocketIO] Close received: " + e.name + " " + e.data);
+		Debug.Log("[SocketIO] Close received: " + e.Name + " " + e.Data);
 	}
 }
