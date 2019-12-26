@@ -26,25 +26,25 @@
  */
 #endregion
 
+using Newtonsoft.Json.Linq;
+
 namespace SocketIO
 {
 	public class SocketIOEvent
 	{
-		public string name { get; set; }
+		public string Name { get; private set; }
 
-		public JSONObject data { get; set; }
+		public JToken Data { get; private set; }
 
-		public SocketIOEvent(string name) : this(name, null) { }
-		
-		public SocketIOEvent(string name, JSONObject data)
+		public SocketIOEvent(string name, JToken data = null)
 		{
-			this.name = name;
-			this.data = data;
+			Name = name;
+			Data = data;
 		}
 		
 		public override string ToString()
 		{
-			return string.Format("[SocketIOEvent: name={0}, data={1}]", name, data);
+			return $"[SocketIOEvent: name={Name}, data={Data}]";
 		}
 	}
 }
