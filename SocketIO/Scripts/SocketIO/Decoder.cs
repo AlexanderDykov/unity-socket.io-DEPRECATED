@@ -26,27 +26,33 @@
  */
 #endregion
 
-//#define SOCKET_IO_DEBUG			// Uncomment this for debug
 using System;
 using System.Text;
+using Logger;
 using Newtonsoft.Json.Linq;
-using UnityEngine;
-using WebSocketSharp;
 
 namespace SocketIO
 {
 	public class Decoder
 	{
-		public Packet Decode(MessageEventArgs e)
+		private ILogger _logger;
+
+		public Decoder() : this(null)
+		{
+			
+		}
+		
+		public Decoder(ILogger logger)
+		{
+			_logger = logger;
+		}
+		
+		public Packet Decode(byte[] bytes)
 		{
 			try
 			{
-#if SOCKET_IO_DEBUG
-				Debug.Log("[SocketIO] Decoding: " + e.Data);
-#endif
-				Debug.LogError(e.RawData.Length);
+				var data = Encoding.UTF8.GetString(bytes);
 
-				string data = e.Data;
 				Packet packet = new Packet();
 				int offset = 0;
 
@@ -62,7 +68,7 @@ namespace SocketIO
 				// connect message properly parsed
 				if (data.Length <= 2) {
 #if SOCKET_IO_DEBUG
-					Debug.Log("[SocketIO] Decoded: " + packet);
+					_logger?.Log("[SocketIO] Decoded: " + packet);
 #endif
 					return packet;
 				}
@@ -98,20 +104,20 @@ namespace SocketIO
 				if (++offset >= data.Length - 1) return packet;
 				try {
 #if SOCKET_IO_DEBUG
-					Debug.Log("[SocketIO] Parsing JSON: " + data.Substring(offset));
+					_logger?.Log("[SocketIO] Parsing JSON: " + data.Substring(offset));
 #endif
 					packet.json = JToken.Parse(data.Substring(offset));
 				} catch (Exception ex) {
-					Debug.LogException(ex);
+					_logger?.LogException(ex);
 				}
 
 #if SOCKET_IO_DEBUG
-				Debug.Log("[SocketIO] Decoded: " + packet);
+				_logger?.Log("[SocketIO] Decoded: " + packet);
 #endif
 				return packet;
 
 			} catch(Exception ex) {
-				throw new SocketIOException("Packet decoding failed: " + e.Data ,ex);
+				throw new SocketIOException("Packet decoding failed: " ,ex);
 			}
 		}
 	}

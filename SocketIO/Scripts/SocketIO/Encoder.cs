@@ -26,21 +26,33 @@
  */
 #endregion
 
-//#define SOCKET_IO_DEBUG			// Uncomment this for debug
 using System;
 using System.Text;
+using Logger;
 
 namespace SocketIO
 {
 	public class Encoder
 	{
+		private ILogger _logger;
+
+		public Encoder() : this(null)
+		{
+			
+		}
+		
+		public Encoder(ILogger logger)
+		{
+			_logger = logger;
+		}
+		
 		public string Encode(Packet packet)
 		{
 			try
 			{
-				#if SOCKET_IO_DEBUG
-				Debug.Log("[SocketIO] Encoding: " + packet.json);
-				#endif
+#if SOCKET_IO_DEBUG
+				_logger?.Log("[SocketIO] Encoding: " + packet.json);
+#endif
 
 				StringBuilder builder = new StringBuilder();
 
@@ -71,12 +83,12 @@ namespace SocketIO
 				}
 
 				if (packet.json != null && !packet.json.ToString().Equals("null")) {
-					builder.Append(packet.json.ToString());
+					builder.Append(packet.json);
 				}
 
-				#if SOCKET_IO_DEBUG
-				Debug.Log("[SocketIO] Encoded: " + builder);
-				#endif
+#if SOCKET_IO_DEBUG
+				_logger?.Log("[SocketIO] Encoded: " + builder);
+#endif
 
 				return builder.ToString();
 			
