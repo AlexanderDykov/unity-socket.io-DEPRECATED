@@ -28,14 +28,13 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
-using Logger;
 using NativeWebSocket;
 using Newtonsoft.Json.Linq;
+using ILogger = Logger.ILogger;
 
 namespace SocketIO
 {
-    public class SocketIO
+    public class SocketIO : IDisposable
     {
         private readonly WebSocket _websocket;
         private readonly Decoder _decoder;
@@ -47,6 +46,7 @@ namespace SocketIO
         private readonly List<Ack> _ackList;
 
         private Thread _pingThread;
+        private Thread _socketThread;
         private volatile bool _connected;
         private volatile bool _thPinging;
         private volatile bool _thPong;
@@ -63,8 +63,8 @@ namespace SocketIO
         private readonly object _ackQueueLock;
         private readonly Queue<Packet> _ackQueue;
         
-        public string Sid { get; private set; }        
-        public bool IsConnected => _websocket.IsConnected();
+        public string Sid { get; private set; }
+        public bool IsConnected => _websocket.State == WebSocketState.Open || _websocket.State == WebSocketState.Closing;
 
         public SocketIO(string host, int port, ILogger logger)
         {
@@ -145,7 +145,20 @@ namespace SocketIO
             _thPong = true;
             _thPinging = false;
         }
-
+        
+        private void RunSocketThread(object obj)
+        {
+            WebSocket webSocket = (WebSocket)obj;
+            while(_connected){
+                if(_websocket.State != WebSocketState.Closed){
+                    Thread.Sleep(ReconnectDelay);
+                } else {
+                    webSocket.Connect();
+                }
+            }
+            webSocket.Close();
+        }
+        
         private void RunPingThread(object obj)
         {
             var webSocket = (WebSocket)obj;
@@ -164,7 +177,7 @@ namespace SocketIO
                     EmitPacket(new Packet(EnginePacketType.PING));
                     var pingStart = DateTime.Now;
 					
-                    while(webSocket.IsConnected() && _thPinging && (DateTime.Now.Subtract(pingStart).TotalSeconds < timeoutMills)){
+                    while(IsConnected && _thPinging && (DateTime.Now.Subtract(pingStart).TotalSeconds < timeoutMills)){
                         Thread.Sleep(200);
                     }
 					
@@ -368,22 +381,24 @@ namespace SocketIO
         {
             EmitClose();
             _connected = false;
+        }
+        
+        public void Connect()
+        {
+            _connected = true;
+            
+            _socketThread = new Thread(RunSocketThread);
+            _socketThread.Start(_websocket);
+            
+            _pingThread = new Thread(RunPingThread);
+            _pingThread.Start(_websocket);
+        }
+
+        public void Dispose()
+        {
             _ackList.Clear();
             _handlers.Clear();
             RemoveCallbacks();
         }
-        
-        public async Task Connect()
-        {
-            _pingThread = new Thread(RunPingThread);
-            _pingThread.Start(_websocket);
-            _connected = true;
-            await _websocket.Connect();
-        }
     }
-}
-
-public static class WebSocketExtensions
-{
-    public static bool IsConnected(this WebSocket socket) => socket.State == WebSocketState.Open || socket.State == WebSocketState.Closing;
 }

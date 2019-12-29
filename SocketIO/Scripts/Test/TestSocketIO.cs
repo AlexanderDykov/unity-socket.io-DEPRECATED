@@ -26,6 +26,7 @@
  */
 #endregion
 
+using System.Collections;
 using Logger;
 using SocketIO;
 using UnityEngine;
@@ -34,7 +35,7 @@ public class TestSocketIO : MonoBehaviour
 {
 	private SocketIO.SocketIO socket = new SocketIO.SocketIO("localhost", 3000, new UnityLogger());
 
-	public async void Start() 
+	public void Start() 
 	{
 //		GameObject go = GameObject.Find("SocketIO");
 //		socket = go.GetComponent<SocketIOComponent>();
@@ -46,7 +47,7 @@ public class TestSocketIO : MonoBehaviour
 		
 		socket.On("move", OnMove);
 		
-		await socket.Connect();
+		socket.Connect();
 		
 //		StartCoroutine("BeepBoop");
 	}
@@ -69,10 +70,18 @@ public class TestSocketIO : MonoBehaviour
 		Debug.Log("[SocketIO] Open received: " + e.Name + " " + e.Data);
 		socket.Emit("beep");
 	}
+
+	IEnumerator Test()
+	{
+		yield return new WaitForSeconds(2f);
+		Debug.Log("cccc");
+		socket.Close();
+	}
 	
 	public void TestBoop(SocketIOEvent e)
 	{
-//		Debug.Log("[SocketIO] Boop received: " + e.Name + " " + e.Data);
+		Debug.Log("[SocketIO] Boop received: " + e.Name + " " + e.Data);
+		StartCoroutine(Test());
 //
 //		if (e.Data == null) { return; }
 //
