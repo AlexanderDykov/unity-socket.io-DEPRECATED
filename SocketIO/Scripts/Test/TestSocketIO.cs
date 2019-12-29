@@ -26,67 +26,61 @@
  */
 #endregion
 
-using System.Collections;
-using UnityEngine;
+using Logger;
 using SocketIO;
+using UnityEngine;
 
 public class TestSocketIO : MonoBehaviour
 {
-	private SocketIOComponent socket;
+	private SocketIO.SocketIO socket = new SocketIO.SocketIO("localhost", 3000, new UnityLogger());
 
-	public void Start() 
+	public async void Start() 
 	{
-		GameObject go = GameObject.Find("SocketIO");
-		socket = go.GetComponent<SocketIOComponent>();
+//		GameObject go = GameObject.Find("SocketIO");
+//		socket = go.GetComponent<SocketIOComponent>();
 
 		socket.On("open", TestOpen);
 		socket.On("boop", TestBoop);
 		socket.On("error", TestError);
 		socket.On("close", TestClose);
 		
-		StartCoroutine("BeepBoop");
+		socket.On("move", OnMove);
+		
+		await socket.Connect();
+		
+//		StartCoroutine("BeepBoop");
 	}
 
-	private IEnumerator BeepBoop()
+	private void OnMove(SocketIOEvent obj)
 	{
-		// wait 1 seconds and continue
-		yield return new WaitForSeconds(1);
-		
-		socket.Emit("beep");
-		
-		// wait 3 seconds and continue
-		yield return new WaitForSeconds(3);
-		
-		socket.Emit("beep");
-		
-		// wait 2 seconds and continue
-		yield return new WaitForSeconds(2);
-		
-		socket.Emit("beep");
-		
-		// wait ONE FRAME and continue
-		yield return null;
-		
-		socket.Emit("beep");
-		socket.Emit("beep");
+		Debug.Log(GetVectorFromJson(obj));
+		Debug.Log(obj.Data["id"]);
+//		var player = spawner.GetPlayer();
+//		var navPos = player.GetComponent<Navigator>();
+	}
+	
+	private static Vector3 GetVectorFromJson(SocketIOEvent obj)
+	{
+		return new Vector3(obj.Data["x"].ToObject<int>(), 0, obj.Data["y"].ToObject<int>());
 	}
 
 	public void TestOpen(SocketIOEvent e)
 	{
 		Debug.Log("[SocketIO] Open received: " + e.Name + " " + e.Data);
+		socket.Emit("beep");
 	}
 	
 	public void TestBoop(SocketIOEvent e)
 	{
-		Debug.Log("[SocketIO] Boop received: " + e.Name + " " + e.Data);
-
-		if (e.Data == null) { return; }
-
-		Debug.Log(
-			"#####################################################" +
-			"THIS: " + e.Data["this"] +
-			"#####################################################"
-		);
+//		Debug.Log("[SocketIO] Boop received: " + e.Name + " " + e.Data);
+//
+//		if (e.Data == null) { return; }
+//
+//		Debug.Log(
+//			"#####################################################" +
+//			"THIS: " + e.Data["this"] +
+//			"#####################################################"
+//		);
 	}
 	
 	public void TestError(SocketIOEvent e)
@@ -97,5 +91,15 @@ public class TestSocketIO : MonoBehaviour
 	public void TestClose(SocketIOEvent e)
 	{	
 		Debug.Log("[SocketIO] Close received: " + e.Name + " " + e.Data);
+	}
+	
+	private void Update()
+	{
+		socket.Update();
+	}
+
+	public void OnDestroy()
+	{
+		socket.Close();
 	}
 }
